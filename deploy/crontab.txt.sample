@@ -1,0 +1,1 @@
+7 * * * * {{NODE}} --no-warnings {{PROJECT_DIR}}/src/run-scrape.js >> {{PROJECT_DIR}}/logs/scrape.log 2>&1

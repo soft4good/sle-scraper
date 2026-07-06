@@ -1,0 +1,6 @@
+node_modules/
+.env
+data/
+logs/
+test/e2e/screenshots/
+*.lock

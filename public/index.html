@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SLE Auction Watcher</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔔</text></svg>">
+</head>
+<body>
+  <header>
+    <h1>SLE Auction Watcher</h1>
+    <nav>
+      <a href="#/triggers" data-nav="triggers">Triggers</a>
+      <a href="#/browse" data-nav="browse">Browse lots</a>
+      <a href="#/notifications" data-nav="notifications">Notifications</a>
+      <a href="#/settings" data-nav="settings">Settings</a>
+    </nav>
+    <div id="run-box">
+      <span id="run-status"></span>
+      <button id="run-now">Run scrape now</button>
+    </div>
+  </header>
+  <main id="view"></main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

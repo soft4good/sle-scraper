@@ -1,0 +1,19 @@
+{
+  "name": "sle-scraper",
+  "version": "1.0.0",
+  "description": "Watches Receita Federal SLE auctions and notifies on matching lots",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "scrape": "node src/run-scrape.js",
+    "serve": "node src/server.js",
+    "test": "node --test test/*.test.js",
+    "test:e2e": "node --test test/e2e/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

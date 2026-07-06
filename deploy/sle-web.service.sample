@@ -1,0 +1,12 @@
+[Unit]
+Description=SLE Auction Watcher web UI
+After=network.target
+
+[Service]
+ExecStart={{NODE}} --no-warnings {{PROJECT_DIR}}/src/server.js
+WorkingDirectory={{PROJECT_DIR}}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
