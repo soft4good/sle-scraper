@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory = $true)][string]$Title,
   [Parameter(Mandatory = $true)][string]$Body,
-  [string]$Url = ''
+  [string]$Url = '',
+  [string]$LocalUrl = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,6 +19,12 @@ if ($Url) {
   $launch = " activationType=`"protocol`" launch=`"$escapedUrl`""
 }
 
+$actions = ''
+if ($LocalUrl) {
+  $escapedLocalUrl = [System.Security.SecurityElement]::Escape($LocalUrl)
+  $actions = "<actions><action content=`"Local matches`" activationType=`"protocol`" arguments=`"$escapedLocalUrl`"/></actions>"
+}
+
 $xml = @"
 <toast$launch>
   <visual>
@@ -26,6 +33,7 @@ $xml = @"
       <text>$escapedBody</text>
     </binding>
   </visual>
+  $actions
 </toast>
 "@
 

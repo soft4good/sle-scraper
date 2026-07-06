@@ -67,7 +67,11 @@ export async function performRun({ db, config, log = console.log, transports = n
     const triggers = listTriggers(db, { enabledOnly: true });
     const lots = lotRowsForMatching(db, config.activeStatusCodes);
     const messages = planNotifications({
-      db, triggers, lots, noticeEvents, frontendUrl: config.frontendUrl, now: isoNow(),
+      db, triggers, lots, noticeEvents,
+      frontendUrl: config.frontendUrl,
+      baseUrl: config.baseUrl,
+      maxLotNotificationsPerTrigger: config.maxLotNotificationsPerTrigger,
+      now: isoNow(),
     });
 
     const activeTransports = transports ?? createTransports({

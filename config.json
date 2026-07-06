@@ -5,6 +5,7 @@
   "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) sle-watcher/1.0 (personal auction watcher)",
   "requestSpacingMs": 500,
   "maxLotDetailsPerRun": 400,
+  "maxLotNotificationsPerTrigger": 15,
   "activeStatusCodes": [2, 3, 8],
   "deadlineSoonHours": 24,
   "ntfyServer": "https://ntfy.sh"

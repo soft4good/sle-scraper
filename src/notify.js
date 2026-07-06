@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { recordNotification } from './db.js';
 import { evaluateTriggers } from './matcher.js';
+import { officialNoticeUrl, officialLotUrl } from './config.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -34,12 +35,40 @@ function lotListBody(lots) {
   return shown.join(' • ') + (rest > 0 ? ` • +${rest} more` : '');
 }
 
+/** One-lot notification: title/body/deep link to the official SLE lot page. */
+function lotMessage(trigger, lot, channels, baseUrl, frontendUrl) {
+  const place = lot.city || lot.unitName || '?';
+  const pct = lot.appraisalValue > 0 && lot.minBid != null
+    ? ` (${Math.round((lot.minBid / lot.appraisalValue) * 100)}% of appraisal)`
+    : '';
+  const description = (lot.searchText ?? '').replace(/\s*\n\s*/g, ' · ').slice(0, 140);
+  const deadline = lot.proposalsEndAt ? ` · proposals end ${lot.proposalsEndAt}` : '';
+  return {
+    triggerId: trigger.id,
+    triggerName: trigger.name,
+    event: 'new_lot',
+    title: `SLE · ${trigger.name}: ${lot.category ?? 'lot'} #${lot.lotNumber} — ${formatBRL(lot.minBid)} (${place})`,
+    body: `${description}${pct}${deadline}`,
+    url: officialLotUrl(baseUrl, lot.shortId, lot.lotNumber),
+    localUrl: `${frontendUrl}/#/triggers/${trigger.id}/matches`,
+    channels,
+    records: [{ noticeId: lot.noticeId, lotNumber: lot.lotNumber }],
+  };
+}
+
 /**
  * Decide what to send this run. Consults the notifications table for dedup and
  * records every covered (trigger, notice, lot, event) row. Returns messages:
  * { triggerId, triggerName, event, title, body, url, channels, records }.
+ *
+ * new_lot fires one message per matching lot, deep-linked to the official SLE
+ * lot page — capped at maxLotNotificationsPerTrigger per trigger per run, with
+ * the overflow rolled into a single summary message.
  */
-export function planNotifications({ db, triggers, lots, noticeEvents, frontendUrl, now }) {
+export function planNotifications({
+  db, triggers, lots, noticeEvents, frontendUrl, baseUrl, now,
+  maxLotNotificationsPerTrigger = 15,
+}) {
   const messages = [];
   const matchesByTrigger = evaluateTriggers(triggers, lots);
 
@@ -48,30 +77,34 @@ export function planNotifications({ db, triggers, lots, noticeEvents, frontendUr
     const channels = trigger.config.channels ?? DEFAULT_CHANNELS;
     const matching = matchesByTrigger.get(trigger.id) ?? [];
     if (matching.length === 0) continue;
-    const url = `${frontendUrl}/#/triggers/${trigger.id}/matches`;
 
     if (events.includes('new_lot')) {
       const fresh = matching.filter(
         (lot) => !alreadyNotified(db, trigger.id, lot.noticeId, lot.lotNumber, 'new_lot'),
       );
-      if (fresh.length > 0) {
-        const message = {
+      const perLot = fresh.slice(0, maxLotNotificationsPerTrigger);
+      const overflow = fresh.slice(maxLotNotificationsPerTrigger);
+
+      for (const lot of perLot) messages.push(lotMessage(trigger, lot, channels, baseUrl, frontendUrl));
+      if (overflow.length > 0) {
+        messages.push({
           triggerId: trigger.id,
           triggerName: trigger.name,
           event: 'new_lot',
-          title: `SLE · ${trigger.name}: ${fresh.length} new lot${fresh.length > 1 ? 's' : ''}`,
-          body: lotListBody(fresh),
-          url,
+          title: `SLE · ${trigger.name}: ${overflow.length} more matching lot${overflow.length > 1 ? 's' : ''}`,
+          body: lotListBody(overflow),
+          url: `${frontendUrl}/#/triggers/${trigger.id}/matches`,
           channels,
-          records: fresh.map((lot) => ({ noticeId: lot.noticeId, lotNumber: lot.lotNumber })),
-        };
+          records: overflow.map((lot) => ({ noticeId: lot.noticeId, lotNumber: lot.lotNumber })),
+        });
+      }
+      for (const message of messages.filter((entry) => entry.triggerId === trigger.id && entry.event === 'new_lot')) {
         for (const record of message.records) {
           recordNotification(db, {
             triggerId: trigger.id, noticeId: record.noticeId, lotNumber: record.lotNumber,
-            event: 'new_lot', title: message.title, body: message.body, url, channels,
+            event: 'new_lot', title: message.title, body: message.body, url: message.url, channels,
           }, now);
         }
-        messages.push(message);
       }
     }
 
@@ -87,19 +120,21 @@ export function planNotifications({ db, triggers, lots, noticeEvents, frontendUr
       const suffix = noticeEvent.event === 'deadline_soon' && lotsInNotice[0].proposalsEndAt
         ? ` — ends ${lotsInNotice[0].proposalsEndAt}`
         : '';
+      const noticeUrl = officialNoticeUrl(baseUrl, lotsInNotice[0].shortId);
       const message = {
         triggerId: trigger.id,
         triggerName: trigger.name,
         event: noticeEvent.event,
         title,
         body: `${lotsInNotice.length} matching lot${lotsInNotice.length > 1 ? 's' : ''} in ${noticeEvent.noticeId}${suffix}: ${lotListBody(lotsInNotice)}`,
-        url,
+        url: noticeUrl,
+        localUrl: `${frontendUrl}/#/triggers/${trigger.id}/matches`,
         channels,
         records: [{ noticeId: noticeEvent.noticeId, lotNumber: NOTICE_LEVEL_LOT }],
       };
       recordNotification(db, {
         triggerId: trigger.id, noticeId: noticeEvent.noticeId, lotNumber: NOTICE_LEVEL_LOT,
-        event: noticeEvent.event, title, body: message.body, url, channels,
+        event: noticeEvent.event, title, body: message.body, url: noticeUrl, channels,
       }, now);
       messages.push(message);
     }
@@ -173,6 +208,7 @@ export function createTransports({
         '-Body', message.body,
       ];
       if (message.url) args.push('-Url', message.url);
+      if (message.localUrl) args.push('-LocalUrl', message.localUrl);
       await execFileImpl(powershellPath, args, { timeout: 30000 });
     },
 
@@ -187,6 +223,9 @@ export function createTransports({
           title: message.title,
           message: message.body,
           click: message.url || undefined,
+          actions: message.localUrl
+            ? [{ action: 'view', label: 'Local matches', url: message.localUrl }]
+            : undefined,
           tags: ['moneybag'],
         }),
       });
