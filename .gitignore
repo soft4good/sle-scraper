@@ -1,5 +1,6 @@
 node_modules/
 .env
+deploy/run-scrape-hidden.vbs
 data/
 logs/
 test/e2e/screenshots/

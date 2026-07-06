@@ -55,12 +55,20 @@ loginctl enable-linger "$USER"   # start without an interactive login
 ### Surviving Windows restarts (optional)
 
 Cron fires only while WSL is running, and Windows does not boot WSL by itself.
-A Windows Task Scheduler job that wakes WSL hourly closes the gap (run from
-WSL; adjust the distro name — `wsl.exe -l` lists yours):
+A Windows Task Scheduler job that wakes WSL hourly closes the gap. Launching
+`wsl.exe` directly from the scheduler flashes a console window every hour, so
+the task instead runs a windowless VBScript wrapper (`wscript.exe` is a GUI
+host — no console, and it hides the `wsl.exe` window it spawns). From WSL:
 
 ```bash
-NODE=$(command -v node) DIR=$(pwd) sh -c 'schtasks.exe /Create /F /TN "SLE Scrape" /SC HOURLY /ST 00:37 \
-  /TR "wsl.exe -d '"$WSL_DISTRO_NAME"' -u '"$USER"' -- /bin/bash -lc \"$NODE --no-warnings $DIR/src/run-scrape.js >> $DIR/logs/scrape.log 2>&1\""'
+# 1. Generate the wrapper from the sample (CRLF endings for wscript)
+NODE=$(command -v node) DIR=$(pwd) sh -c \
+  'sed "s|{{DISTRO}}|$WSL_DISTRO_NAME|g; s|{{USER}}|$USER|g; s|{{NODE}}|$NODE|g; s|{{PROJECT_DIR}}|$DIR|g" \
+   deploy/run-scrape-hidden.vbs.sample | sed "s/\r\?$/\r/" > deploy/run-scrape-hidden.vbs'
+
+# 2. Register the hourly task pointing at it
+schtasks.exe /Create /F /TN "SLE Scrape" /SC HOURLY /ST 00:37 \
+  /TR "wscript.exe \"$(wslpath -w deploy/run-scrape-hidden.vbs)\""
 ```
 
 It overlaps harmlessly with the WSL cron entry (lockfile + notification

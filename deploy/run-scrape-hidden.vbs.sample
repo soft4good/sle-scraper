@@ -1,0 +1,6 @@
+' Windowless launcher for the hourly scrape: wscript.exe is a GUI host, so no
+' console flashes. Referenced by the "SLE Scrape" Windows Task Scheduler job.
+' Replace {{DISTRO}}, {{USER}}, {{NODE}}, {{PROJECT_DIR}} (see README).
+CreateObject("WScript.Shell").Run _
+  "wsl.exe -d {{DISTRO}} -u {{USER}} -- /bin/bash -lc ""{{NODE}} --no-warnings {{PROJECT_DIR}}/src/run-scrape.js >> {{PROJECT_DIR}}/logs/scrape.log 2>&1""", _
+  0, False
